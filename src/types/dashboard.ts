@@ -51,6 +51,8 @@ export interface ClassSession {
   gmeetLink: string;
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'disputed';
   attendanceMarked?: boolean;
+  markedAt?: string; // Timestamp when attendance was marked (ISO 8601)
+  billingStatus?: 'pending' | 'billed' | 'disputed'; // Billing status for 24-hour grace period
   topic?: string;
   homework?: string;
   teacherJoined?: boolean;
@@ -162,11 +164,13 @@ export interface TimetableSlot {
   id: string;
   studentId: string;
   teacherId: string;
-  dayOfWeek: number; // 0-6, Sunday = 0
+  dayOfWeek?: number; // 0-6, Sunday = 0 (for recurring classes)
+  specificDate?: string; // ISO 8601 date (for one-time classes)
   time: string;
   duration: number;
   subject: string;
-  recurring: boolean;
+  recurring: boolean; // true for recurring, false for one-time
+  gmeetLink?: string; // Optional: can inherit from student or be specific
 }
 
 // Availability types

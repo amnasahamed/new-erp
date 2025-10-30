@@ -1,0 +1,423 @@
+// Claps Learn ERP - Prisma Schema
+// Based on DATABASE_SCHEMA.sql
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  coordinator
+  teacher
+  parent
+  hr
+  accountant
+}
+
+enum Department {
+  AA
+  BB
+  CC
+  DD
+  EE
+}
+
+enum StudentStatus {
+  demo
+  ongoing
+  paused
+  stopped
+}
+
+enum TeacherStatus {
+  pending
+  interviewed
+  approved
+  active
+}
+
+enum ClassStatus {
+  upcoming
+  ongoing
+  completed
+  cancelled
+  disputed
+}
+
+enum BillingStatus {
+  pending
+  billed
+  disputed
+}
+
+enum DisputeStatus {
+  open
+  resolved
+  escalated
+}
+
+enum DemoStatus {
+  pending
+  assigned
+  completed
+}
+
+enum DemoOutcome {
+  registered
+  not_interested
+  follow_up
+}
+
+enum PaymentOrigin {
+  domestic
+  international
+}
+
+model DepartmentModel {
+  id             String   @id @default(uuid())
+  code           Department @unique
+  name           String
+  whatsappNumber String?  @map("whatsapp_number")
+
+  users          User[]
+  students       Student[]
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("departments")
+}
+
+model User {
+  id            String      @id @default(uuid())
+  userCode      String      @unique @map("user_code")
+  name          String
+  email         String      @unique
+  passwordHash  String      @map("password_hash")
+  role          UserRole
+  departmentId  String?     @map("department_id")
+  phone         String?
+  whatsapp      String?
+  avatarUrl     String?     @map("avatar_url")
+  isActive      Boolean     @default(true) @map("is_active")
+  lastLogin     DateTime?   @map("last_login")
+
+  department    DepartmentModel? @relation(fields: [departmentId], references: [id])
+
+  studentsAsParent Student[] @relation("ParentToStudents")
+  teacher       Teacher?
+  ledgerEntries AccountLedger[]
+  resolvedDisputes Dispute[] @relation("ResolvedBy")
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Student {
+  id                String        @id @default(uuid())
+  code              String        @unique
+  name              String
+  departmentId      String        @map("department_id")
+  parentId          String        @map("parent_id")
+  balance           Float         @default(0)
+  balanceHours      Float         @default(0) @map("balance_hours")
+  status            StudentStatus @default(demo)
+  classSyllabus     String?       @map("class_syllabus")
+  gmeetLink         String?       @map("gmeet_link")
+  parentWhatsapp    String?       @map("parent_whatsapp")
+  demoCompletedDate DateTime?     @map("demo_completed_date") @db.Date
+  firstClassDate    DateTime?     @map("first_class_date") @db.Date
+  feedbackSubmitted Boolean       @default(false) @map("feedback_submitted")
+
+  department        DepartmentModel @relation(fields: [departmentId], references: [id])
+  parent            User          @relation("ParentToStudents", fields: [parentId], references: [id])
+
+  demoRequests      DemoRequest[]
+  timetables        Timetable[]
+  classes           Class[]
+  disputes          Dispute[]
+  ledgerEntries     AccountLedger[]
+  feedback          Feedback[]
+  exams             Exam[]
+
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@map("students")
+}
+
+model Teacher {
+  id              String        @id @default(uuid())
+  code            String        @unique
+  userId          String        @unique @map("user_id")
+  name            String
+  subject         String
+  syllabus        String?
+  medium          String?
+  rating          Float?
+  conversionRatio Float?        @map("conversion_ratio")
+  hourlySalary    Float         @map("hourly_salary")
+  status          TeacherStatus @default(pending)
+  phone           String?
+  teachingStyle   String?       @map("teaching_style")
+  gadgets         String?
+  internetType    String?       @map("internet_type")
+  isAvailable     Boolean       @default(true) @map("is_available")
+
+  user            User          @relation(fields: [userId], references: [id])
+
+  demoRequests    DemoRequest[]
+  timetables      Timetable[]
+  classes         Class[]
+  availability    TeacherAvailability[]
+  salaryRecords   SalaryRecord[]
+  feedback        Feedback[]
+  exams           Exam[]
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@map("teachers")
+}
+
+model DemoRequest {
+  id             String       @id @default(uuid())
+  parentName     String       @map("parent_name")
+  studentName    String?      @map("student_name")
+  parentId       String?      @map("parent_id")
+  studentId      String?      @map("student_id")
+  preferredTime  DateTime     @map("preferred_time")
+  subject        String
+  status         DemoStatus   @default(pending)
+  teacherId      String?      @map("teacher_id")
+  gmeetLink      String?      @map("gmeet_link")
+  outcome        DemoOutcome?
+  completedDate  DateTime?    @map("completed_date")
+  notes          String?
+
+  student        Student?     @relation(fields: [studentId], references: [id])
+  teacher        Teacher?     @relation(fields: [teacherId], references: [id])
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("demo_requests")
+}
+
+model Timetable {
+  id           String    @id @default(uuid())
+  studentId    String    @map("student_id")
+  teacherId    String    @map("teacher_id")
+  subject      String
+  dayOfWeek    Int?      @map("day_of_week")
+  specificDate DateTime? @map("specific_date") @db.Date
+  time         DateTime  @db.Time
+  duration     Int
+  recurring    Boolean   @default(true)
+  gmeetLink    String?   @map("gmeet_link")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  student      Student   @relation(fields: [studentId], references: [id])
+  teacher      Teacher   @relation(fields: [teacherId], references: [id])
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("timetable")
+}
+
+model Class {
+  id                  String        @id @default(uuid())
+  date                DateTime      @db.Date
+  time                DateTime      @db.Time
+  subject             String
+  teacherId           String        @map("teacher_id")
+  studentId           String        @map("student_id")
+  duration            Int
+  gmeetLink           String        @map("gmeet_link")
+  status              ClassStatus   @default(upcoming)
+  attendanceMarked    Boolean       @default(false) @map("attendance_marked")
+  markedAt            DateTime?     @map("marked_at")
+  billingStatus       BillingStatus @default(pending) @map("billing_status")
+  topic               String?
+  homework            String?
+  teacherJoined       Boolean?      @map("teacher_joined")
+  studentJoined       Boolean?      @map("student_joined")
+  cancelledAt         DateTime?     @map("cancelled_at")
+  cancellationReason  String?       @map("cancellation_reason")
+
+  teacher             Teacher       @relation(fields: [teacherId], references: [id])
+  student             Student       @relation(fields: [studentId], references: [id])
+
+  disputes            Dispute[]
+  feedback            Feedback[]
+
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  @@map("classes")
+}
+
+model Dispute {
+  id                    String         @id @default(uuid())
+  studentId             String         @map("student_id")
+  classId               String         @map("class_id")
+  classDate             DateTime       @map("class_date") @db.Date
+  reason                String
+  status                DisputeStatus  @default(open)
+  teacherResponse       String?        @map("teacher_response")
+  resolutionNotes       String?        @map("resolution_notes")
+  finalAdjustmentHours  Float?         @map("final_adjustment_hours")
+  resolvedBy            String?        @map("resolved_by")
+  resolvedAt            DateTime?      @map("resolved_at")
+
+  student               Student        @relation(fields: [studentId], references: [id])
+  class                 Class          @relation(fields: [classId], references: [id])
+  resolver              User?          @relation("ResolvedBy", fields: [resolvedBy], references: [id])
+
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  @@map("disputes")
+}
+
+model AccountLedger {
+  id            String         @id @default(uuid())
+  date          DateTime       @db.Date
+  studentId     String         @map("student_id")
+  particulars   String
+  credit        Float          @default(0)
+  debit         Float          @default(0)
+  balance       Float
+  invoiceNo     String?        @map("invoice_no")
+  narration     String
+  paymentOrigin PaymentOrigin? @map("payment_origin")
+  createdBy     String?        @map("created_by")
+
+  student       Student        @relation(fields: [studentId], references: [id])
+  creator       User?          @relation(fields: [createdBy], references: [id])
+
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@map("account_ledger")
+}
+
+model SalaryRecord {
+  id           String    @id @default(uuid())
+  teacherId    String    @map("teacher_id")
+  month        DateTime  @db.Date
+  hoursTaught  Float     @map("hours_taught")
+  hourlyRate   Float     @map("hourly_rate")
+  grossSalary  Float     @map("gross_salary")
+  gst          Float
+  netSalary    Float     @map("net_salary")
+  paid         Boolean   @default(false)
+  paidAt       DateTime? @map("paid_at")
+
+  teacher      Teacher   @relation(fields: [teacherId], references: [id])
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([teacherId, month])
+  @@map("salary_records")
+}
+
+model TeacherAvailability {
+  id         String   @id @default(uuid())
+  teacherId  String   @map("teacher_id")
+  dayOfWeek  Int      @map("day_of_week")
+  timeSlot   String   @map("time_slot")
+  available  Boolean  @default(true)
+
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([teacherId, dayOfWeek, timeSlot])
+  @@map("teacher_availability")
+}
+
+model Feedback {
+  id            String   @id @default(uuid())
+  studentId     String   @map("student_id")
+  teacherId     String   @map("teacher_id")
+  classId       String?  @map("class_id")
+  rating        Int
+  comments      String?
+  submittedDate DateTime @default(now()) @map("submitted_date")
+
+  student       Student  @relation(fields: [studentId], references: [id])
+  teacher       Teacher  @relation(fields: [teacherId], references: [id])
+  class         Class?   @relation(fields: [classId], references: [id])
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("feedback")
+}
+
+model Exam {
+  id              String   @id @default(uuid())
+  studentId       String   @map("student_id")
+  subject         String
+  date            DateTime @db.Date
+  score           Float?
+  maxScore        Float    @map("max_score")
+  teacherComments String?  @map("teacher_comments")
+  loggedBy        String?  @map("logged_by")
+
+  student         Student  @relation(fields: [studentId], references: [id])
+  teacher         Teacher? @relation(fields: [loggedBy], references: [id])
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("exams")
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  type           String
+  message        String
+  actionUrl      String?   @map("action_url")
+  read           Boolean   @default(false)
+  whatsappSent   Boolean   @default(false) @map("whatsapp_sent")
+  whatsappSentAt DateTime? @map("whatsapp_sent_at")
+
+  user           User      @relation(fields: [userId], references: [id])
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  tableName       String    @map("table_name")
+  recordId        String    @map("record_id")
+  action          String
+  oldValues       Json?     @map("old_values")
+  newValues       Json?     @map("new_values")
+  changedBy       String?   @map("changed_by")
+  changedByName   String?   @map("changed_by_name")
+  changedByRole   UserRole? @map("changed_by_role")
+  ipAddress       String?   @map("ip_address")
+
+  user            User?     @relation(fields: [changedBy], references: [id])
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("audit_log")
+}

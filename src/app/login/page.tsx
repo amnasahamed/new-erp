@@ -18,15 +18,12 @@ import {
 } from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { setCredentials } from '@/store/slices/authSlice';
-import { UserRole, ROLE_ROUTES, ROLE_LABELS, Department, DEPARTMENTS } from '@/types/roles';
-import { User } from '@/types/auth';
+import { login } from '@/store/slices/authSlice';
+import { UserRole, ROLE_ROUTES, ROLE_LABELS } from '@/types/roles';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>(UserRole.ADMIN);
-  const [department, setDepartment] = useState<Department>('AA');
   const [error, setError] = useState('');
 
   const dispatch = useAppDispatch();
@@ -38,30 +35,19 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Mock authentication - replace with actual API call
       if (!email || !password) {
         setError('Please enter email and password');
         return;
       }
 
-      // Create mock user
-      const mockUser: User = {
-        id: '1',
-        name: email.split('@')[0],
-        email,
-        role,
-        department: role === UserRole.COORDINATOR ? department : undefined,
-      };
+      // Use real API authentication
+      const result = await dispatch(login({ email, password })).unwrap();
 
-      const mockToken = 'mock-jwt-token';
-
-      // Set credentials in Redux
-      dispatch(setCredentials({ user: mockUser, token: mockToken }));
-
-      // Redirect to appropriate dashboard
-      router.push(ROLE_ROUTES[role]);
+      // Redirect to appropriate dashboard based on user's role
+      const userRole = result.user.role as UserRole;
+      router.push(ROLE_ROUTES[userRole]);
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err || 'Login failed. Please check your credentials.');
     }
   };
 
@@ -122,46 +108,15 @@ export default function LoginPage() {
 
               <TextField
                 fullWidth
-                label="Password"
+                label="Password (DOB format: DD-MM-YYYY)"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 margin="normal"
                 required
                 autoComplete="current-password"
+                placeholder="DD-MM-YYYY"
               />
-
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Login As</InputLabel>
-                <Select
-                  value={role}
-                  label="Login As"
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                >
-                  {Object.values(UserRole).map((r) => (
-                    <MenuItem key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              {role === UserRole.COORDINATOR && (
-                <FormControl fullWidth margin="normal">
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={department}
-                    label="Department"
-                    onChange={(e) => setDepartment(e.target.value as Department)}
-                  >
-                    {DEPARTMENTS.map((dept) => (
-                      <MenuItem key={dept} value={dept}>
-                        Department {dept}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
 
               <Button
                 type="submit"
@@ -175,26 +130,26 @@ export default function LoginPage() {
               </Button>
 
               <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
-                  Demo Credentials (any email/password):
+                <Typography variant="caption" color="textSecondary" display="block" gutterBottom fontWeight={600}>
+                  Test Credentials (Password is DOB):
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • Admin: Full system access
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • admin@clapslearn.com / 01-01-1990
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • Coordinator: Department-specific management
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • coordinator@clapslearn.com / 15-03-1985
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • Teacher: Class and attendance management
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • teacher@clapslearn.com / 10-05-1992
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • Parent: Student monitoring and payments
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • parent@clapslearn.com / 20-07-1988
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • HR: Teacher recruitment and performance
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • hr@clapslearn.com / 05-11-1987
                 </Typography>
-                <Typography variant="caption" color="textSecondary" display="block">
-                  • Accountant: Financial management and GST
+                <Typography variant="caption" color="textSecondary" display="block" sx={{ fontFamily: 'monospace' }}>
+                  • accountant@clapslearn.com / 25-09-1989
                 </Typography>
               </Box>
             </form>

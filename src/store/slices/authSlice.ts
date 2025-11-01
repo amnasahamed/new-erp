@@ -1,8 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, LoginCredentials, LoginResponse, User } from '@/types/auth';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api';
+import { authApi, apiClient, type ApiError } from '@/lib/api';
 
 // Initial state
 const initialState: AuthState = {
@@ -18,16 +16,29 @@ export const login = createAsyncThunk<LoginResponse, LoginCredentials>(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, credentials);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      const response = await authApi.login({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      // Token is automatically set in apiClient by authApi.login
+      return response;
+    } catch (error) {
+      const apiError = error as ApiError;
+      return rejectWithValue(apiError.message || 'Login failed');
     }
   }
 );
 
 export const logout = createAsyncThunk('auth/logout', async () => {
-  // Clear any server-side session if needed
+  try {
+    await authApi.logout();
+  } catch (error) {
+    // Continue with logout even if API call fails
+    console.error('Logout API error:', error);
+  }
+  // Clear token from client
+  apiClient.setToken(null);
   return;
 });
 
@@ -35,12 +46,13 @@ export const verifyToken = createAsyncThunk<User, string>(
   'auth/verifyToken',
   async (token, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_URL}/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return response.data.user;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Token verification failed');
+      // Set token in client before verifying
+      apiClient.setToken(token);
+      const user = await authApi.getCurrentUser();
+      return user;
+    } catch (error) {
+      const apiError = error as ApiError;
+      return rejectWithValue(apiError.message || 'Token verification failed');
     }
   }
 );

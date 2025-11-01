@@ -36,63 +36,8 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import StatCard from '@/components/common/StatCard';
 import StatusBadge from '@/components/common/StatusBadge';
 import { UserRole } from '@/types/roles';
-import { Teacher } from '@/types/dashboard';
-
-// Mock data
-const mockPendingTeachers: Teacher[] = [
-  { id: '1', code: 'TCH101', name: 'Ramesh Kumar', subject: 'Mathematics', status: 'pending', hourlyRate: 250 },
-  { id: '2', code: 'TCH102', name: 'Anitha Sharma', subject: 'Physics', status: 'interviewed', hourlyRate: 250 },
-];
-
-const mockActiveTeachers: Teacher[] = [
-  {
-    id: '3',
-    code: 'TCH001',
-    name: 'Rajesh Menon',
-    subject: 'Mathematics',
-    syllabus: 'CBSE, ICSE',
-    medium: 'English, Malayalam',
-    rating: 4.5,
-    conversionRatio: 75,
-    availability: true,
-    status: 'active',
-    hourlyRate: 250,
-    teachingStyle: 'Interactive, focus on problem-solving',
-  },
-  {
-    id: '4',
-    code: 'TCH002',
-    name: 'Lakshmi Nair',
-    subject: 'Physics',
-    syllabus: 'CBSE',
-    medium: 'English',
-    rating: 4.8,
-    conversionRatio: 85,
-    availability: true,
-    status: 'active',
-    hourlyRate: 300,
-    teachingStyle: 'Concept-based learning',
-  },
-  {
-    id: '5',
-    code: 'TCH003',
-    name: 'Suresh Babu',
-    subject: 'Chemistry',
-    syllabus: 'State Board',
-    medium: 'Malayalam',
-    rating: 4.2,
-    conversionRatio: 65,
-    availability: false,
-    status: 'active',
-    hourlyRate: 250,
-  },
-];
-
-const mockPerformanceData = [
-  { teacherId: 't3', teacher: 'Rajesh Menon', avgRating: 4.5, conversionRate: 75, noShows: 1, cancellations: 2, complaints: 0 },
-  { teacherId: 't4', teacher: 'Lakshmi Nair', avgRating: 4.8, conversionRate: 85, noShows: 0, cancellations: 1, complaints: 0 },
-  { teacherId: 't5', teacher: 'Suresh Babu', avgRating: 4.2, conversionRate: 65, noShows: 3, cancellations: 4, complaints: 2 },
-];
+import { useTeachers } from '@/hooks';
+import { CircularProgress, Alert } from '@mui/material';
 
 const menuItems = [
   { label: 'Dashboard', icon: <Assignment />, href: '/hr/dashboard' },
@@ -103,15 +48,30 @@ export default function HRDashboard() {
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Use real hooks
+  const { teachers, loading, error } = useTeachers();
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
-  const filteredTeachers = mockActiveTeachers.filter((teacher) => {
-    const matchesSubject = subjectFilter === 'all' || teacher.subject === subjectFilter;
+  const filteredTeachers = teachers.filter((teacher) => {
+    const matchesSubject = subjectFilter === 'all' || teacher.subjects?.includes(subjectFilter);
     const matchesStatus = statusFilter === 'all' || teacher.status === statusFilter;
     return matchesSubject && matchesStatus;
   });
+
+  if (loading) {
+    return (
+      <AuthGuard allowedRoles={[UserRole.HR]}>
+        <DashboardLayout menuItems={menuItems}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <CircularProgress />
+          </Box>
+        </DashboardLayout>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard allowedRoles={[UserRole.HR]}>
@@ -120,6 +80,8 @@ export default function HRDashboard() {
           <Typography variant="h4" gutterBottom fontWeight={600}>
             HR Dashboard
           </Typography>
+
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
           <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
             <Tab label="Teacher Pipeline" />
@@ -155,7 +117,7 @@ export default function HRDashboard() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {mockPendingTeachers.map((teacher) => (
+                            {[].map((teacher) => (
                               <TableRow key={teacher.id}>
                                 <TableCell>{teacher.code}</TableCell>
                                 <TableCell>{teacher.name}</TableCell>
@@ -271,7 +233,7 @@ export default function HRDashboard() {
                 <Grid item xs={12} md={3}>
                   <StatCard
                     title="Total Active Teachers"
-                    value={mockActiveTeachers.length}
+                    value={teachers.length}
                     icon={<Person fontSize="large" />}
                   />
                 </Grid>
@@ -320,7 +282,7 @@ export default function HRDashboard() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {mockPerformanceData.map((data) => (
+                        {teachers.map((data) => (
                           <TableRow key={data.teacherId}>
                             <TableCell>{data.teacher}</TableCell>
                             <TableCell>
@@ -397,7 +359,7 @@ export default function HRDashboard() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {mockActiveTeachers.map((teacher) => {
+                            {teachers.map((teacher) => {
                               const availableSlots = Math.floor(Math.random() * 20) + 5;
                               const bookedClasses = Math.floor(Math.random() * 15) + 3;
                               return (

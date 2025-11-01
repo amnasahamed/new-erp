@@ -7,7 +7,7 @@ services:
     container_name: erp-postgres
     restart: always
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: erp_user
       POSTGRES_PASSWORD: erp_password
@@ -35,7 +35,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3001
-      FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: http://157.173.97.181:8000
       ENABLE_CRON_JOBS: "true"
     depends_on:
       postgres:
@@ -54,9 +54,9 @@ services:
     container_name: erp-frontend
     restart: always
     ports:
-      - "3000:3000"
+      - "8000:3000"
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+      NEXT_PUBLIC_API_BASE_URL: http://157.173.97.181:3001/api
       NODE_ENV: ${NODE_ENV:-development}
     depends_on:
       - backend

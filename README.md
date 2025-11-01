@@ -1,6 +1,8 @@
-# ERP Dashboard - Multi-Role Management System
+# Claps Learn ERP System
 
-A comprehensive multi-role dashboard system built with Next.js 14, TypeScript, Material-UI, and Redux Toolkit.
+A comprehensive Enterprise Resource Planning system for managing educational operations, including student management, teacher coordination, class scheduling, billing, and administrative functions.
+
+Built with Next.js 14, TypeScript, Material-UI, Redux Toolkit (Frontend) and Express.js, Prisma, PostgreSQL (Backend).
 
 ## Features
 
@@ -49,6 +51,7 @@ A comprehensive multi-role dashboard system built with Next.js 14, TypeScript, M
 
 ## Tech Stack
 
+**Frontend:**
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **UI Library**: Material-UI (MUI) v5
@@ -57,97 +60,219 @@ A comprehensive multi-role dashboard system built with Next.js 14, TypeScript, M
 - **Charts**: Recharts
 - **Date Handling**: date-fns
 
-## Getting Started
+**Backend:**
+- **Framework**: Express.js
+- **Language**: TypeScript
+- **ORM**: Prisma
+- **Database**: PostgreSQL 14
+- **Authentication**: JWT with bcrypt
+- **Scheduling**: node-cron
+- **Logging**: Winston
+
+**Infrastructure:**
+- **Containerization**: Docker & Docker Compose
+
+## Quick Start (Recommended)
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- **Docker Desktop** (version 20.10 or higher) - [Download here](https://www.docker.com/products/docker-desktop)
+- **Docker Compose** (version 2.0 or higher) - Included with Docker Desktop
+- **Git**
 
-### Installation
+### One-Command Installation
 
-1. Clone the repository:
+1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd new-erp
    ```
 
-2. Install dependencies:
+2. **Run the automated setup script**:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+   The setup script will automatically:
+   - ✓ Check for Docker and Docker Compose prerequisites
+   - ✓ Create environment configuration files
+   - ✓ Generate secure JWT secret
+   - ✓ Build Docker images for all services
+   - ✓ Start PostgreSQL, Backend API, and Frontend
+   - ✓ Run database migrations
+   - ✓ Seed database with test data
+
+3. **Access the application**:
+   - **Frontend Dashboard**: http://localhost:3000
+   - **Backend API**: http://localhost:3001/api
+   - **Database**: PostgreSQL on localhost:5432
+
+### Test Credentials
+
+After setup, log in with these test accounts:
+
+| Role | Email | Password (DOB Format) | Department |
+|------|-------|----------------------|------------|
+| **Admin** | admin@clapslearn.com | 01-01-1990 | All |
+| **Coordinator** | coordinator@clapslearn.com | 15-03-1985 | Dept AA |
+| **Teacher** | teacher@clapslearn.com | 10-05-1992 | - |
+| **Parent** | parent@clapslearn.com | 20-07-1988 | - |
+| **HR** | hr@clapslearn.com | 05-11-1987 | - |
+| **Accountant** | accountant@clapslearn.com | 25-09-1989 | - |
+
+**Password Format**: DD-MM-YYYY (Date of Birth)
+
+## Manual Installation (Without Docker)
+
+If you prefer not to use Docker:
+
+### Backend Setup
+
+1. **Install PostgreSQL** and create database:
+   ```bash
+   createdb claps_learn_erp
+   ```
+
+2. **Configure backend**:
+   ```bash
+   cd backend
+   npm install
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+3. **Run database migrations**:
+   ```bash
+   npm run prisma:generate
+   npm run prisma:migrate
+   npm run seed
+   ```
+
+4. **Start backend server**:
+   ```bash
+   npm run dev
+   ```
+   Backend runs on http://localhost:3001
+
+### Frontend Setup
+
+1. **Install dependencies**:
    ```bash
    npm install
    ```
 
-3. Set up environment variables:
+2. **Configure environment**:
    ```bash
    cp .env.local.example .env.local
+   # Set NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
    ```
 
-4. Run the development server:
+3. **Start frontend**:
    ```bash
    npm run dev
    ```
+   Frontend runs on http://localhost:3000
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+## Business Rules Enforced
+
+The system enforces critical business rules at the backend level:
+
+- ✓ **Demo Required**: Students cannot register without a completed, converted demo
+- ✓ **One Active Demo**: Only one active demo request allowed per student at a time
+- ✓ **24-Hour Grace Period**: Parents have 24 hours to raise disputes after attendance is marked
+- ✓ **Automatic Billing**: Balance is deducted automatically after 24-hour grace period
+- ✓ **2-Hour Cancellation**: Classes can only be cancelled at least 2 hours before start time
+- ✓ **Teacher Notification**: Teachers are automatically notified of class cancellations
+- ✓ **Auto-Pause**: Students are paused when balance ≤ ₹250
+- ✓ **Department Isolation**: Coordinators can only access their department's data
+- ✓ **HR Restrictions**: HR cannot edit student GMeet links (only coordinators)
+- ✓ **Audit Compliance**: All financial transactions require narration for audit trails
 
 ## Project Structure
 
 ```
 new-erp/
-├── src/
-│   ├── app/                      # Next.js app directory
+├── backend/                      # Backend API
+│   ├── prisma/
+│   │   ├── schema.prisma         # Database schema (15 models)
+│   │   └── migrations/           # Database migrations
+│   ├── src/
+│   │   ├── controllers/          # Business logic controllers
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── student.controller.ts
+│   │   │   ├── teacher.controller.ts
+│   │   │   ├── class.controller.ts
+│   │   │   ├── demo.controller.ts
+│   │   │   ├── dispute.controller.ts
+│   │   │   └── ledger.controller.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts           # JWT auth & RBAC
+│   │   │   └── errorHandler.ts   # Global error handling
+│   │   ├── routes/               # API route definitions
+│   │   ├── jobs/                 # Cron jobs
+│   │   │   ├── billing.job.ts    # 24-hour billing processor
+│   │   │   ├── autoPause.job.ts  # Auto-pause on low balance
+│   │   │   └── generateClasses.job.ts
+│   │   ├── utils/                # Helpers & utilities
+│   │   └── server.ts             # Express app entry
+│   ├── Dockerfile                # Backend container
+│   ├── .env.example              # Environment template
+│   └── package.json
+├── src/                          # Frontend (Next.js)
+│   ├── app/                      # App router pages
 │   │   ├── admin/                # Admin dashboard
 │   │   ├── coordinator/          # Coordinator dashboard
 │   │   ├── teacher/              # Teacher dashboard
 │   │   ├── parent/               # Parent dashboard
 │   │   ├── hr/                   # HR dashboard
 │   │   ├── accountant/           # Accountant dashboard
-│   │   ├── login/                # Login page
-│   │   ├── unauthorized/         # Unauthorized access page
-│   │   ├── layout.tsx            # Root layout
-│   │   └── page.tsx              # Home page
+│   │   └── login/                # Login page
 │   ├── components/               # React components
-│   │   ├── auth/                 # Authentication components
+│   │   ├── auth/                 # Auth components
 │   │   ├── common/               # Shared components
-│   │   ├── layout/               # Layout components
-│   │   └── providers/            # Context providers
+│   │   └── layout/               # Layout components
 │   ├── store/                    # Redux store
-│   │   ├── slices/               # Redux slices
-│   │   ├── hooks.ts              # Typed Redux hooks
-│   │   └── index.ts              # Store configuration
+│   │   └── slices/               # Redux slices
 │   ├── types/                    # TypeScript types
-│   │   ├── auth.ts               # Auth types
-│   │   ├── roles.ts              # Role types
-│   │   └── dashboard.ts          # Dashboard data types
-│   └── theme/                    # MUI theme configuration
-│       └── theme.ts
-├── public/                       # Static files
-├── .env.local                    # Environment variables
-├── next.config.js                # Next.js configuration
-├── tsconfig.json                 # TypeScript configuration
-└── package.json                  # Dependencies
+│   └── theme/                    # MUI theme
+├── docker-compose.yml            # Multi-container orchestration
+├── Dockerfile.frontend           # Frontend container
+├── setup.sh                      # Automated setup script
+├── VALIDATION_REPORT.md          # Implementation validation
+├── VALIDATION_PROOF.md           # Business rules proof
+└── README.md                     # This file
 ```
 
-## Authentication
+## Authentication & Security
 
-The application uses a mock authentication system for demo purposes. In production, replace with actual authentication:
+The system uses **JWT-based authentication** with the following security features:
 
-### Demo Login
+### Authentication Flow
+1. User logs in with email and password (DOB format: DD-MM-YYYY)
+2. Backend validates credentials and generates JWT token
+3. Token is sent to frontend and stored securely
+4. All API requests include token in Authorization header
+5. Backend middleware validates token and checks permissions
 
-Use any email/password combination and select a role:
+### Role-Based Access Control (RBAC)
 
-- **Admin**: Full system access
-- **Coordinator**: Department-specific (select department: AA, BB, CC, DD, EE)
-- **Teacher**: Class and attendance management
-- **Parent**: Student monitoring
-- **HR**: Teacher management
-- **Accountant**: Financial management
+Six distinct roles with specific permissions:
 
-### Role-Based Access Control
+- **Admin**: Full system access across all departments
+- **Coordinator**: Department-specific access (can only view/edit their department)
+- **Teacher**: Class management, attendance, availability, salary preview
+- **Parent**: View student details, balance, classes, raise disputes
+- **HR**: Teacher onboarding, performance tracking, availability management
+- **Accountant**: Ledger management, payments, salary processing, reports
 
-Each route is protected by `AuthGuard` component that checks:
-1. User authentication status
-2. User role permissions
-3. Redirects to login or unauthorized page if needed
+### Security Features
+- Password hashing with bcrypt (10 salt rounds)
+- JWT tokens with configurable expiration (default: 7 days)
+- Middleware authentication on all protected routes
+- Department-level data isolation for coordinators
+- Audit logging for all critical operations
+- Row-level security ready (RLS policies in DATABASE_SCHEMA.sql)
 
 ## Key Features
 
@@ -170,59 +295,340 @@ Each route is protected by `AuthGuard` component that checks:
 - Responsive navigation drawer
 - Adaptive tables and grids
 
-## API Integration
+## API Documentation
 
-Currently using mock data. To integrate with real APIs:
+The backend provides a comprehensive REST API at `http://localhost:3001/api`:
 
-1. Update `src/store/slices/authSlice.ts` for authentication
-2. Create service files in `src/services/` for each domain
-3. Update dashboard pages to fetch real data
-4. Replace mock data with API calls
+### Authentication Endpoints
+- `POST /api/auth/login` - User login (returns JWT token)
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/verify` - Verify credentials
+- `POST /api/auth/logout` - User logout
+
+### Student Management
+- `GET /api/students` - List students (with filters: status, department, search)
+- `POST /api/students` - Create student (validates demo conversion)
+- `GET /api/students/:id` - Get student details
+- `PUT /api/students/:id` - Update student
+- `DELETE /api/students/:id` - Delete student
+- `POST /api/students/:id/pause` - Pause student (deactivates timetable)
+- `POST /api/students/:id/resume` - Resume student
+
+### Teacher Management
+- `GET /api/teachers` - List teachers
+- `POST /api/teachers` - Create teacher
+- `GET /api/teachers/:id` - Get teacher details
+- `PUT /api/teachers/:id` - Update teacher
+- `DELETE /api/teachers/:id` - Delete teacher
+- `GET /api/teachers/:id/availability` - Get availability
+- `POST /api/teachers/:id/availability` - Set availability
+
+### Class Management
+- `GET /api/classes` - List classes (filter by date, teacher, student, status)
+- `POST /api/classes` - Create class
+- `GET /api/classes/:id` - Get class details
+- `PUT /api/classes/:id` - Update class
+- `POST /api/classes/:id/attendance` - Mark attendance (starts 24h grace period)
+- `POST /api/classes/:id/cancel` - Cancel class (validates 2-hour rule, notifies teacher)
+
+### Demo Workflow
+- `GET /api/demos` - List demo requests
+- `POST /api/demos` - Create demo (enforces one-active-demo rule)
+- `GET /api/demos/:id` - Get demo details
+- `PUT /api/demos/:id` - Update demo
+- `POST /api/demos/:id/assign` - Assign teacher to demo
+- `POST /api/demos/:id/outcome` - Record outcome (updates teacher conversion ratio)
+
+### Dispute Management
+- `GET /api/disputes` - List disputes
+- `POST /api/disputes` - Raise dispute (pauses billing on class)
+- `GET /api/disputes/:id` - Get dispute details
+- `POST /api/disputes/:id/escalate` - Escalate to admin
+- `POST /api/disputes/:id/resolve` - Resolve with adjustment (credits student if approved)
+
+### Account Ledger
+- `GET /api/ledger` - Get ledger entries (filter by student, date range, type)
+- `POST /api/ledger/payment` - Add payment (requires narration for audit)
+- `GET /api/ledger/export` - Export to CSV/Excel
+
+### Authentication Required
+All endpoints (except `/api/auth/login` and `/api/auth/register`) require JWT token:
+```
+Authorization: Bearer <jwt-token>
+```
+
+### Role-Based Authorization
+Endpoints check user roles and department access via middleware.
+
+## Frontend Integration (In Progress)
+
+The frontend currently uses mock data. To complete integration:
+
+1. Create API client service (`src/services/api.ts`)
+2. Update Redux slices to call real API endpoints
+3. Replace mock data in dashboard components
+4. Handle authentication tokens in Redux store
+5. Add error handling and loading states
+
+## Automated Jobs (Cron)
+
+The backend runs three critical automated jobs:
+
+### 1. Billing Job (Every Hour)
+**File**: `backend/src/jobs/billing.job.ts`
+- Processes classes where 24-hour grace period has expired
+- Deducts balance from student accounts
+- Creates ledger entries for billing
+- Marks classes as 'billed'
+- Skips classes with open disputes
+
+### 2. Auto-Pause Job (Every 30 Minutes)
+**File**: `backend/src/jobs/autoPause.job.ts`
+- Finds students with balance ≤ ₹250
+- Changes status to 'paused'
+- Deactivates their timetable entries
+- Cancels future scheduled classes
+- Sends notifications to parents
+
+### 3. Class Generation Job (Daily at 1 AM)
+**File**: `backend/src/jobs/generateClasses.job.ts`
+- Reads active timetable entries
+- Generates class sessions for upcoming days
+- Creates Class records with proper timestamps
+- Links students and teachers
 
 ## Development
 
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
+**Backend:**
+- `cd backend && npm run dev` - Start backend in dev mode
+- `cd backend && npm run build` - Build backend for production
+- `cd backend && npm run prisma:studio` - Open Prisma Studio (DB GUI)
+- `cd backend && npm run prisma:migrate` - Run database migrations
+- `cd backend && npm run seed` - Seed database with test data
+
+**Frontend:**
+- `npm run dev` - Start Next.js development server
+- `npm run build` - Build frontend for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript type checking
+- `npm run type-check` - Run TypeScript checks
+
+**Docker:**
+- `docker-compose up -d` - Start all services in background
+- `docker-compose down` - Stop all services
+- `docker-compose logs backend` - View backend logs
+- `docker-compose logs frontend` - View frontend logs
+- `docker-compose exec backend npm run prisma:studio` - Open Prisma Studio
 
 ### Adding New Features
 
-1. Create types in `src/types/`
-2. Add Redux slice in `src/store/slices/` if needed
-3. Create components in `src/components/`
-4. Add pages in `src/app/`
+1. **Backend**: Create controller → Add routes → Update middleware if needed
+2. **Frontend**: Create types → Add Redux slice → Create components → Add pages
+3. **Database**: Update `schema.prisma` → Run migrations → Update seed data
 
-## Deployment
+## Troubleshooting
 
-### Build
+### Docker Issues
 
+**Problem**: Containers fail to start
 ```bash
+# Check logs for specific service
+docker-compose logs postgres
+docker-compose logs backend
+docker-compose logs frontend
+
+# Restart all services
+docker-compose down
+docker-compose up -d
+
+# Rebuild containers if code changed
+docker-compose up -d --build
+```
+
+**Problem**: Database connection errors
+```bash
+# Check PostgreSQL is running
+docker-compose ps postgres
+
+# Check database is healthy
+docker-compose exec postgres pg_isready -U erp_user
+
+# Connect to database directly
+docker-compose exec postgres psql -U erp_user -d claps_learn_erp
+```
+
+**Problem**: Port already in use
+```bash
+# Find process using port (example: 3001)
+lsof -i :3001
+# Or on Windows:
+netstat -ano | findstr :3001
+
+# Kill the process or change port in docker-compose.yml
+```
+
+### Backend Issues
+
+**Problem**: Prisma migration fails
+```bash
+cd backend
+npm run prisma:reset  # Resets database (WARNING: deletes all data)
+npm run prisma:migrate
+npm run seed
+```
+
+**Problem**: JWT token invalid
+- Check JWT_SECRET is set in backend/.env
+- Ensure frontend is sending token in Authorization header
+- Token may have expired (default: 7 days) - login again
+
+### Frontend Issues
+
+**Problem**: API calls fail
+- Verify backend is running on http://localhost:3001
+- Check NEXT_PUBLIC_API_BASE_URL in .env.local
+- Check browser console for CORS errors
+- Ensure JWT token is being sent with requests
+
+**Problem**: Build fails
+```bash
+# Clear Next.js cache
+rm -rf .next
 npm run build
 ```
 
-### Deploy to Vercel
+### Permission Issues (Linux/Mac)
 
 ```bash
-vercel
+# Make setup.sh executable
+chmod +x setup.sh
+
+# Fix Docker permissions (Linux)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Fix file ownership issues
+sudo chown -R $USER:$USER .
 ```
 
-Or connect your GitHub repository to Vercel for automatic deployments.
+## Deployment
+
+### Production Checklist
+
+Before deploying to production:
+
+- [ ] Change JWT_SECRET to a strong random value
+- [ ] Update database credentials (not default erp_user/erp_password)
+- [ ] Disable or remove test user accounts
+- [ ] Enable HTTPS/TLS
+- [ ] Configure production CORS settings
+- [ ] Set NODE_ENV=production
+- [ ] Enable Row Level Security (RLS) in PostgreSQL
+- [ ] Set up proper logging and monitoring
+- [ ] Configure backup strategy for database
+- [ ] Review and harden security settings
+
+### Deploy to VPS/Cloud
+
+1. **Prepare server** (Ubuntu/Debian):
+   ```bash
+   sudo apt update
+   sudo apt install docker.io docker-compose git
+   ```
+
+2. **Clone and configure**:
+   ```bash
+   git clone <repository-url>
+   cd new-erp
+   ./setup.sh
+   ```
+
+3. **Configure reverse proxy** (nginx):
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
+
+       location / {
+           proxy_pass http://localhost:3000;
+       }
+
+       location /api {
+           proxy_pass http://localhost:3001;
+       }
+   }
+   ```
+
+### Deploy Frontend to Vercel
+
+```bash
+# Build and deploy frontend only
+npm run build
+vercel deploy --prod
+```
+
+Note: When deploying frontend separately, update NEXT_PUBLIC_API_BASE_URL to your backend URL.
+
+## Documentation
+
+Comprehensive documentation is available:
+
+- **[VALIDATION_REPORT.md](./VALIDATION_REPORT.md)** - Complete validation of all business requirements (95% complete)
+- **[VALIDATION_PROOF.md](./VALIDATION_PROOF.md)** - Proof that business rules work correctly with code references
+- **[IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md)** - Development progress tracking
+- **[DATABASE_SCHEMA.sql](./backend/DATABASE_SCHEMA.sql)** - Complete PostgreSQL schema with RLS policies and audit triggers
 
 ## Contributing
 
-1. Create a feature branch
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
+We welcome contributions! Here's how:
+
+1. **Fork the repository**
+2. **Create a feature branch**:
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+3. **Make your changes** and test thoroughly
+4. **Commit with descriptive messages**:
+   ```bash
+   git commit -m "Add amazing feature that does X"
+   ```
+5. **Push to your fork**:
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+6. **Open a Pull Request** with description of changes
+
+### Development Guidelines
+- Follow TypeScript best practices
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation as needed
+- Ensure all existing tests pass
+- Follow the existing code structure
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
-For issues or questions, please create an issue in the repository.
+Need help? Here's how to get support:
+
+- **Issues**: [Create an issue](https://github.com/your-repo/new-erp/issues) for bugs or feature requests
+- **Email**: support@clapslearn.com
+- **Documentation**: Check the `/docs` folder and markdown files in the repo
+
+## Acknowledgments
+
+- Built for **Claps Learn** educational institution
+- Uses industry-standard technologies (Next.js, Express, PostgreSQL)
+- Implements comprehensive business logic for ERP operations
+- Designed with security, audit compliance, and scalability in mind
+
+---
+
+**Version**: 1.0.0
+**Last Updated**: 2024
+**Maintainer**: Claps Learn Development Team

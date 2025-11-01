@@ -22,6 +22,8 @@ import {
   DialogActions,
   TextField,
   Chip,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   Assignment,
@@ -29,61 +31,14 @@ import {
   CheckCircle,
   AttachMoney,
   CalendarMonth,
-} from '@mui/icons-material';
+} from '@mui/material';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AuthGuard from '@/components/auth/AuthGuard';
 import StatCard from '@/components/common/StatCard';
 import StatusBadge from '@/components/common/StatusBadge';
 import { UserRole } from '@/types/roles';
-import { ClassSession } from '@/types/dashboard';
-
-// Mock data
-const mockTodayClasses: ClassSession[] = [
-  {
-    id: '1',
-    date: '2025-10-28',
-    time: '10:00 AM',
-    subject: 'Mathematics',
-    teacher: { id: 't1', code: 'TCH001', name: 'Rajesh Menon', subject: 'Mathematics', hourlyRate: 250, status: 'active' },
-    teacherId: 't1',
-    student: { id: 's1', code: 'STU001', name: 'Arjun Kumar', department: 'AA', balance: 1250, balanceHours: 5.0, status: 'ongoing' },
-    studentId: 's1',
-    duration: 60,
-    gmeetLink: 'https://meet.google.com/abc-defg-hij',
-    status: 'upcoming',
-  },
-  {
-    id: '2',
-    date: '2025-10-28',
-    time: '2:00 PM',
-    subject: 'Physics',
-    teacher: { id: 't1', code: 'TCH001', name: 'Rajesh Menon', subject: 'Physics', hourlyRate: 250, status: 'active' },
-    teacherId: 't1',
-    student: { id: 's2', code: 'STU002', name: 'Priya Sharma', department: 'BB', balance: 375, balanceHours: 1.5, status: 'ongoing' },
-    studentId: 's2',
-    duration: 60,
-    gmeetLink: 'https://meet.google.com/xyz-abcd-efg',
-    status: 'upcoming',
-  },
-];
-
-const mockPastClasses: ClassSession[] = [
-  {
-    id: '3',
-    date: '2025-10-27',
-    time: '10:00 AM',
-    subject: 'Mathematics',
-    teacher: { id: 't1', code: 'TCH001', name: 'Rajesh Menon', subject: 'Mathematics', hourlyRate: 250, status: 'active' },
-    teacherId: 't1',
-    student: { id: 's1', code: 'STU001', name: 'Arjun Kumar', department: 'AA', balance: 1250, balanceHours: 5.0, status: 'ongoing' },
-    studentId: 's1',
-    duration: 60,
-    gmeetLink: 'https://meet.google.com/abc',
-    status: 'completed',
-    attendanceMarked: false,
-    topic: 'Algebra - Quadratic Equations',
-  },
-];
+import { useAppSelector } from '@/store/hooks';
+import { useTodayClasses } from '@/hooks';
 
 const menuItems = [
   { label: 'Dashboard', icon: <Assignment />, href: '/teacher/dashboard' },
@@ -92,30 +47,70 @@ const menuItems = [
 export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState(0);
   const [attendanceDialogOpen, setAttendanceDialogOpen] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<ClassSession | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [attendanceNotes, setAttendanceNotes] = useState('');
+
+  const { user } = useAppSelector((state) => state.auth);
+
+  // Get teacher's classes using real hook
+  const { classes: todayClasses, loading, error, markAttendance } = useTodayClasses(
+    user?.teacherId // Filter by teacher ID from user
+  );
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
-  const handleMarkAttendance = (classSession: ClassSession) => {
-    setSelectedClass(classSession);
+  const handleMarkAttendance = (classId: string) => {
+    setSelectedClassId(classId);
     setAttendanceDialogOpen(true);
   };
 
   const handleCloseAttendance = () => {
     setAttendanceDialogOpen(false);
-    setSelectedClass(null);
+    setSelectedClassId(null);
+    setAttendanceNotes('');
+  };
+
+  const handleSubmitAttendance = async () => {
+    if (!selectedClassId) return;
+
+    const success = await markAttendance(selectedClassId, {
+      attended: true,
+      notes: attendanceNotes || 'Class completed',
+    });
+
+    if (success) {
+      alert('Attendance marked! Parent has 24 hours to raise disputes.');
+      handleCloseAttendance();
+    }
   };
 
   const handleJoinClass = (gmeetLink: string) => {
-    window.open(gmeetLink, '_blank');
+    if (gmeetLink) {
+      window.open(gmeetLink, '_blank');
+    } else {
+      alert('GMeet link not available');
+    }
   };
 
-  // Mock salary data
-  const totalHoursTaught = 45;
-  const hourlyRate = 250;
-  const projectedSalary = totalHoursTaught * hourlyRate;
+  // Calculate salary from completed classes
+  const completedClasses = todayClasses.filter(c => c.attendanceMarked);
+  const totalHoursTaught = completedClasses.reduce((sum, c) => sum + c.duration, 0);
+  const hourlyRate = 250; // Should come from teacher profile
+  const projectedSalary = (totalHoursTaught / 60) * hourlyRate;
+
+  if (loading) {
+    return (
+      <AuthGuard allowedRoles={[UserRole.TEACHER]}>
+        <DashboardLayout menuItems={menuItems}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <CircularProgress />
+          </Box>
+        </DashboardLayout>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard allowedRoles={[UserRole.TEACHER]}>
@@ -125,8 +120,10 @@ export default function TeacherDashboard() {
             Teacher Dashboard
           </Typography>
 
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
           <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-            <Tab label="My Classes Today" />
+            <Tab label={`My Classes Today (${todayClasses.length})`} />
             <Tab label="Attendance Log" />
             <Tab label="Salary Preview" />
             <Tab label="Availability" />
@@ -147,47 +144,60 @@ export default function TeacherDashboard() {
                         <TableRow>
                           <TableCell>Time</TableCell>
                           <TableCell>Student</TableCell>
-                          <TableCell>Subject</TableCell>
                           <TableCell>Duration</TableCell>
                           <TableCell>Status</TableCell>
                           <TableCell>Action</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {mockTodayClasses.map((classSession) => (
-                          <TableRow key={classSession.id}>
-                            <TableCell>{classSession.time}</TableCell>
-                            <TableCell>{classSession.student.name}</TableCell>
-                            <TableCell>{classSession.subject}</TableCell>
-                            <TableCell>{classSession.duration} mins</TableCell>
-                            <TableCell>
-                              <StatusBadge status={classSession.status} />
-                            </TableCell>
-                            <TableCell>
-                              {classSession.status === 'upcoming' ? (
-                                <Button
-                                  variant="contained"
-                                  size="small"
-                                  startIcon={<VideoCall />}
-                                  onClick={() => handleJoinClass(classSession.gmeetLink)}
-                                >
-                                  Join Class
-                                </Button>
-                              ) : classSession.status === 'completed' && !classSession.attendanceMarked ? (
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  startIcon={<CheckCircle />}
-                                  onClick={() => handleMarkAttendance(classSession)}
-                                >
-                                  Mark Attendance
-                                </Button>
-                              ) : (
-                                <Chip label="Attendance Marked" color="success" size="small" />
-                              )}
+                        {todayClasses.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center">
+                              <Typography variant="body2" color="textSecondary">
+                                No classes scheduled for today
+                              </Typography>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          todayClasses.map((classSession) => (
+                            <TableRow key={classSession.id}>
+                              <TableCell>
+                                {new Date(classSession.scheduledAt).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </TableCell>
+                              <TableCell>{classSession.student?.name || 'N/A'}</TableCell>
+                              <TableCell>{classSession.duration / 60} hours</TableCell>
+                              <TableCell>
+                                <StatusBadge status={classSession.status} />
+                              </TableCell>
+                              <TableCell>
+                                {classSession.status === 'scheduled' || classSession.status === 'ongoing' ? (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<VideoCall />}
+                                    onClick={() => handleJoinClass(classSession.gmeetLink || '')}
+                                  >
+                                    Join Class
+                                  </Button>
+                                ) : classSession.status === 'completed' && !classSession.attendanceMarked ? (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CheckCircle />}
+                                    onClick={() => handleMarkAttendance(classSession.id)}
+                                  >
+                                    Mark Attendance
+                                  </Button>
+                                ) : classSession.attendanceMarked ? (
+                                  <Chip label="Attendance Marked" color="success" size="small" />
+                                ) : null}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -218,33 +228,33 @@ export default function TeacherDashboard() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {mockPastClasses.map((classSession) => (
-                          <TableRow key={classSession.id}>
-                            <TableCell>{classSession.date}</TableCell>
-                            <TableCell>{classSession.student.name}</TableCell>
-                            <TableCell>{classSession.subject}</TableCell>
-                            <TableCell>{classSession.duration} mins</TableCell>
-                            <TableCell>{classSession.topic || '-'}</TableCell>
-                            <TableCell>
-                              {classSession.attendanceMarked ? (
-                                <StatusBadge status="completed" label="Marked" />
-                              ) : (
-                                <StatusBadge status="pending" />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {!classSession.attendanceMarked && (
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => handleMarkAttendance(classSession)}
-                                >
-                                  Mark Now
-                                </Button>
-                              )}
+                        {todayClasses.filter(c => c.attendanceMarked).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center">
+                              <Typography variant="body2" color="textSecondary">
+                                No attendance marked yet
+                              </Typography>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          todayClasses.filter(c => c.attendanceMarked).map((classSession) => (
+                            <TableRow key={classSession.id}>
+                              <TableCell>
+                                {new Date(classSession.scheduledAt).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>{classSession.student?.name || 'N/A'}</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>{classSession.duration / 60} hours</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>
+                                <Chip label="Marked" color="success" size="small" />
+                              </TableCell>
+                              <TableCell>
+                                {new Date(classSession.markedAt || '').toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -369,41 +379,28 @@ export default function TeacherDashboard() {
         <Dialog open={attendanceDialogOpen} onClose={handleCloseAttendance} maxWidth="sm" fullWidth>
           <DialogTitle>Mark Attendance</DialogTitle>
           <DialogContent>
-            {selectedClass && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" gutterBottom>
-                  Student: {selectedClass.student.name}
+            <Box sx={{ mt: 2 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Marking attendance will start a 24-hour grace period. Parents can raise disputes during this time.
                 </Typography>
-                <Typography variant="body2" gutterBottom sx={{ mb: 3 }}>
-                  Subject: {selectedClass.subject}
-                </Typography>
-                <TextField
-                  fullWidth
-                  label="Duration (minutes)"
-                  type="number"
-                  defaultValue={selectedClass.duration}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Topic Covered"
-                  multiline
-                  rows={3}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Homework Assigned"
-                  multiline
-                  rows={2}
-                />
-              </Box>
-            )}
+              </Alert>
+              <TextField
+                fullWidth
+                label="Class Notes (optional)"
+                multiline
+                rows={4}
+                value={attendanceNotes}
+                onChange={(e) => setAttendanceNotes(e.target.value)}
+                placeholder="Topic covered, homework assigned, etc."
+                sx={{ mb: 2 }}
+              />
+            </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseAttendance}>Cancel</Button>
-            <Button variant="contained" onClick={handleCloseAttendance}>
-              Mark Attendance
+            <Button variant="contained" onClick={handleSubmitAttendance}>
+              Confirm Attendance
             </Button>
           </DialogActions>
         </Dialog>

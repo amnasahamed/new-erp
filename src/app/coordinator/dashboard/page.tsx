@@ -26,6 +26,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Alert as MuiAlert,
 } from '@mui/material';
 import {
   Assignment,
@@ -41,33 +43,7 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import StatusBadge from '@/components/common/StatusBadge';
 import { UserRole } from '@/types/roles';
 import { useAppSelector } from '@/store/hooks';
-import { Student, DemoRequest, Dispute } from '@/types/dashboard';
-
-// Mock data
-const mockStudents: Student[] = [
-  { id: '1', code: 'STU001', name: 'Arjun Kumar', department: 'AA', balance: 1250, balanceHours: 5.0, status: 'ongoing', classSyllabus: 'CBSE Class 10', nextClass: '2025-10-29 10:00 AM' },
-  { id: '2', code: 'STU002', name: 'Priya Sharma', department: 'AA', balance: 375, balanceHours: 1.5, status: 'ongoing', classSyllabus: 'ICSE Class 9', nextClass: '2025-10-29 2:00 PM' },
-  { id: '3', code: 'STU003', name: 'Rahul Verma', department: 'AA', balance: 2500, balanceHours: 10.0, status: 'paused', classSyllabus: 'State Board Class 8' },
-];
-
-const mockDemos: DemoRequest[] = [
-  { id: '1', parentName: 'Mr. Suresh', studentName: 'Ananya', preferredTime: '2025-10-29 11:00 AM', subject: 'Mathematics', status: 'pending' },
-  { id: '2', parentName: 'Mrs. Lakshmi', studentName: 'Karthik', preferredTime: '2025-10-29 3:00 PM', subject: 'Physics', status: 'pending' },
-];
-
-const mockDisputes: Dispute[] = [
-  {
-    id: '1',
-    studentId: 's1',
-    student: { id: 's1', code: 'STU001', name: 'Arjun Kumar', department: 'AA', balance: 1250, balanceHours: 5.0, status: 'ongoing' },
-    classDate: '2025-10-25',
-    classId: 'c1',
-    reason: 'Internet connectivity issue',
-    ageHours: 48,
-    status: 'open',
-    createdAt: '2025-10-25T10:00:00Z',
-  },
-];
+import { useStudents, useDemos, useDisputes } from '@/hooks';
 
 const menuItems = [
   { label: 'Dashboard', icon: <Assignment />, href: '/coordinator/dashboard' },
@@ -77,28 +53,91 @@ export default function CoordinatorDashboard() {
   const [activeTab, setActiveTab] = useState(0);
   const [statusFilter, setStatusFilter] = useState('all');
   const [resolveDisputeOpen, setResolveDisputeOpen] = useState(false);
-  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
+  const [selectedDisputeId, setSelectedDisputeId] = useState<string | null>(null);
+  const [adjustmentHours, setAdjustmentHours] = useState<number>(0);
+  const [resolutionNotes, setResolutionNotes] = useState('');
 
   const { user } = useAppSelector((state) => state.auth);
   const department = user?.department || 'AA';
 
+  // Use real hooks instead of mock data
+  const { students, loading: studentsLoading, error: studentsError, pauseStudent, resumeStudent } = useStudents({
+    departmentId: user?.departmentId,
+  });
+
+  const { demos, loading: demosLoading, error: demosError } = useDemos({
+    status: 'pending',
+    departmentId: user?.departmentId,
+  });
+
+  const { disputes, loading: disputesLoading, error: disputesError, resolveDispute } = useDisputes({
+    status: 'open',
+  });
+
   const filteredStudents = statusFilter === 'all'
-    ? mockStudents
-    : mockStudents.filter(s => s.status === statusFilter);
+    ? students
+    : students.filter(s => s.status === statusFilter);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
-  const handleResolveDispute = (dispute: Dispute) => {
-    setSelectedDispute(dispute);
+  const handlePauseStudent = async (studentId: string) => {
+    if (confirm('Are you sure you want to pause this student?')) {
+      const success = await pauseStudent(studentId, 'Coordinator paused');
+      if (success) {
+        alert('Student paused successfully');
+      }
+    }
+  };
+
+  const handleResumeStudent = async (studentId: string) => {
+    if (confirm('Are you sure you want to resume this student?')) {
+      const success = await resumeStudent(studentId);
+      if (success) {
+        alert('Student resumed successfully');
+      }
+    }
+  };
+
+  const handleResolveDispute = (disputeId: string) => {
+    setSelectedDisputeId(disputeId);
     setResolveDisputeOpen(true);
   };
 
   const handleCloseResolveDispute = () => {
     setResolveDisputeOpen(false);
-    setSelectedDispute(null);
+    setSelectedDisputeId(null);
+    setAdjustmentHours(0);
+    setResolutionNotes('');
   };
+
+  const handleSubmitResolution = async () => {
+    if (!selectedDisputeId) return;
+
+    const success = await resolveDispute(selectedDisputeId, {
+      finalAdjustmentHours: adjustmentHours,
+      resolutionNotes: resolutionNotes || 'Resolved by coordinator',
+    });
+
+    if (success) {
+      alert('Dispute resolved successfully!');
+      handleCloseResolveDispute();
+    }
+  };
+
+  // Show loading state
+  if (studentsLoading && activeTab === 0) {
+    return (
+      <AuthGuard allowedRoles={[UserRole.COORDINATOR]}>
+        <DashboardLayout menuItems={menuItems}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <CircularProgress />
+          </Box>
+        </DashboardLayout>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard allowedRoles={[UserRole.COORDINATOR]}>
@@ -108,10 +147,15 @@ export default function CoordinatorDashboard() {
             Coordinator Dashboard - Department {department}
           </Typography>
 
+          {/* Error Messages */}
+          {studentsError && <MuiAlert severity="error" sx={{ mb: 2 }}>Students: {studentsError}</MuiAlert>}
+          {demosError && <MuiAlert severity="error" sx={{ mb: 2 }}>Demos: {demosError}</MuiAlert>}
+          {disputesError && <MuiAlert severity="error" sx={{ mb: 2 }}>Disputes: {disputesError}</MuiAlert>}
+
           <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-            <Tab label="Student List" />
-            <Tab label="Demo Pipeline" />
-            <Tab label="Dispute Queue" />
+            <Tab label={`Student List (${students.length})`} />
+            <Tab label={`Demo Pipeline (${demos.length})`} />
+            <Tab label={`Dispute Queue (${disputes.length})`} />
             <Tab label="Timetable Builder" />
             <Tab label="Notifications" />
           </Tabs>
@@ -155,42 +199,56 @@ export default function CoordinatorDashboard() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredStudents.map((student) => (
-                          <TableRow key={student.id}>
-                            <TableCell>{student.code}</TableCell>
-                            <TableCell>{student.name}</TableCell>
-                            <TableCell>{student.classSyllabus}</TableCell>
-                            <TableCell>
-                              ₹{student.balance} ({student.balanceHours}h)
-                            </TableCell>
-                            <TableCell>{student.nextClass || '-'}</TableCell>
-                            <TableCell>
-                              <StatusBadge status={student.status} />
-                            </TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button size="small" startIcon={<Schedule />}>
-                                  Timetable
-                                </Button>
-                                <Button size="small" startIcon={<Edit />}>
-                                  Edit
-                                </Button>
-                                <Button size="small" startIcon={<Payment />}>
-                                  Payment
-                                </Button>
-                                {student.status === 'ongoing' ? (
-                                  <Button size="small" startIcon={<PauseCircle />} color="warning">
-                                    Pause
-                                  </Button>
-                                ) : student.status === 'paused' ? (
-                                  <Button size="small" startIcon={<PlayCircle />} color="success">
-                                    Resume
-                                  </Button>
-                                ) : null}
-                              </Box>
+                        {filteredStudents.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center">
+                              <Typography variant="body2" color="textSecondary">
+                                No students found
+                              </Typography>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredStudents.map((student) => (
+                            <TableRow key={student.id}>
+                              <TableCell>{student.code}</TableCell>
+                              <TableCell>{student.name}</TableCell>
+                              <TableCell>{student.email || '-'}</TableCell>
+                              <TableCell>
+                                ₹{student.balance} ({(student.balance / 250).toFixed(1)}h)
+                              </TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>
+                                <StatusBadge status={student.status} />
+                              </TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                  <Button size="small" startIcon={<Edit />} variant="outlined">
+                                    Edit
+                                  </Button>
+                                  {student.status === 'ongoing' ? (
+                                    <Button
+                                      size="small"
+                                      startIcon={<PauseCircle />}
+                                      color="warning"
+                                      onClick={() => handlePauseStudent(student.id)}
+                                    >
+                                      Pause
+                                    </Button>
+                                  ) : student.status === 'paused' ? (
+                                    <Button
+                                      size="small"
+                                      startIcon={<PlayCircle />}
+                                      color="success"
+                                      onClick={() => handleResumeStudent(student.id)}
+                                    >
+                                      Resume
+                                    </Button>
+                                  ) : null}
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -222,19 +280,35 @@ export default function CoordinatorDashboard() {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {mockDemos.filter(d => d.status === 'pending').map((demo) => (
-                              <TableRow key={demo.id}>
-                                <TableCell>{demo.parentName}</TableCell>
-                                <TableCell>{demo.studentName}</TableCell>
-                                <TableCell>{demo.preferredTime}</TableCell>
-                                <TableCell>{demo.subject}</TableCell>
-                                <TableCell>
-                                  <Button variant="contained" size="small">
-                                    Assign Teacher + GMeet
-                                  </Button>
+                            {demosLoading ? (
+                              <TableRow>
+                                <TableCell colSpan={5} align="center">
+                                  <CircularProgress size={24} />
                                 </TableCell>
                               </TableRow>
-                            ))}
+                            ) : demos.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={5} align="center">
+                                  <Typography variant="body2" color="textSecondary">
+                                    No pending demo requests
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              demos.filter(d => d.status === 'pending').map((demo) => (
+                                <TableRow key={demo.id}>
+                                  <TableCell>{demo.parentName}</TableCell>
+                                  <TableCell>{demo.studentName}</TableCell>
+                                  <TableCell>{demo.scheduledAt ? new Date(demo.scheduledAt).toLocaleString() : '-'}</TableCell>
+                                  <TableCell>{demo.notes || '-'}</TableCell>
+                                  <TableCell>
+                                    <Button variant="contained" size="small">
+                                      Assign Teacher + GMeet
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -279,23 +353,48 @@ export default function CoordinatorDashboard() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {mockDisputes.map((dispute) => (
-                          <TableRow key={dispute.id}>
-                            <TableCell>{dispute.student.name}</TableCell>
-                            <TableCell>{dispute.classDate}</TableCell>
-                            <TableCell>{dispute.reason}</TableCell>
-                            <TableCell>{dispute.ageHours}h</TableCell>
-                            <TableCell>
-                              <Button
-                                variant="contained"
-                                size="small"
-                                onClick={() => handleResolveDispute(dispute)}
-                              >
-                                Resolve Dispute
-                              </Button>
+                        {disputesLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center">
+                              <CircularProgress size={24} />
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : disputes.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center">
+                              <Typography variant="body2" color="textSecondary">
+                                No open disputes
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          disputes.map((dispute) => {
+                            const hoursAgo = Math.floor(
+                              (new Date().getTime() - new Date(dispute.createdAt).getTime()) / (1000 * 60 * 60)
+                            );
+                            return (
+                              <TableRow key={dispute.id}>
+                                <TableCell>{dispute.class?.student?.name || 'N/A'}</TableCell>
+                                <TableCell>
+                                  {dispute.class?.scheduledAt
+                                    ? new Date(dispute.class.scheduledAt).toLocaleDateString()
+                                    : '-'}
+                                </TableCell>
+                                <TableCell>{dispute.reason}</TableCell>
+                                <TableCell>{hoursAgo}h</TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleResolveDispute(dispute.id)}
+                                  >
+                                    Resolve Dispute
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -368,30 +467,30 @@ export default function CoordinatorDashboard() {
             <Box sx={{ mt: 2 }}>
               <TextField
                 fullWidth
-                label="Teacher Response"
-                multiline
-                rows={3}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
                 label="Resolution Notes"
                 multiline
-                rows={3}
+                rows={4}
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder="Describe how the dispute was resolved..."
                 sx={{ mb: 2 }}
               />
               <TextField
                 fullWidth
-                label="Final Adjustment (hours)"
+                label="Final Adjustment (hours to credit)"
                 type="number"
+                value={adjustmentHours}
+                onChange={(e) => setAdjustmentHours(parseFloat(e.target.value) || 0)}
+                inputProps={{ min: 0, step: 0.5 }}
+                helperText="Enter hours to credit back to student (0 = no refund)"
                 sx={{ mb: 2 }}
               />
             </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseResolveDispute}>Cancel</Button>
-            <Button variant="contained" onClick={handleCloseResolveDispute}>
-              Resolve
+            <Button variant="contained" onClick={handleSubmitResolution}>
+              Resolve Dispute
             </Button>
           </DialogActions>
         </Dialog>

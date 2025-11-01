@@ -7,22 +7,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy prisma schema
+# Copy prisma schema for generating client
 COPY prisma ./prisma
-
-# Copy source code
-COPY . .
-
-# Generate Prisma client
-RUN npm run prisma:generate
-
-# Build TypeScript
-RUN npm run build
-
-# Create logs directory
-RUN mkdir -p logs
 
 EXPOSE 3001
 
-# Start command (will be overridden by docker-compose)
-CMD ["npm", "start"]
+# Command will be overridden by docker-compose
+CMD ["npm", "run", "dev"]
